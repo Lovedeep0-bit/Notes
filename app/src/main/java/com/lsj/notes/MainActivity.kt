@@ -176,7 +176,20 @@ class MainActivity : FragmentActivity() {
                                         .build()
                                     biometricPrompt.authenticate(promptInfo)
                                 } else {
-                                    viewModel.onBiometricEnabledChanged(false)
+                                    // Verify biometrics before disabling
+                                    val executor = ContextCompat.getMainExecutor(this@MainActivity)
+                                    val biometricPrompt = BiometricPrompt(this@MainActivity, executor,
+                                        object : BiometricPrompt.AuthenticationCallback() {
+                                            override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+                                                viewModel.onBiometricEnabledChanged(false)
+                                            }
+                                        })
+                                    val promptInfo = BiometricPrompt.PromptInfo.Builder()
+                                        .setTitle("Disable Biometric Lock")
+                                        .setSubtitle("Confirm your identity to disable biometric locking")
+                                        .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG or BiometricManager.Authenticators.DEVICE_CREDENTIAL)
+                                        .build()
+                                    biometricPrompt.authenticate(promptInfo)
                                 }
                             },
                             onBack = { navController.popBackStack() }

@@ -1,6 +1,7 @@
 package com.lsj.notes.ui
 
 import androidx.compose.animation.*
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -32,8 +33,6 @@ import com.lsj.notes.data.NoteType
 import com.lsj.notes.ui.theme.Black
 import com.lsj.notes.data.Notebook
 import kotlinx.coroutines.launch
-import java.text.SimpleDateFormat
-import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -89,7 +88,7 @@ fun HomeScreen(
 
     // Filter notes based on selectedView
     val displayNotes = when {
-        isSearchActive -> notes // Search results are already filtered in VM
+        isSearchActive -> if (searchQuery.isBlank()) emptyList() else notes.filter { !it.isTrashed } // Search results, excluding trash
         currentSelectedView == "Notes" -> notes.filter { !it.isTrashed } // All notes (non-trashed)
         currentSelectedView == "Trash" -> trashedNotes
         currentSelectedView.startsWith("Notebook-") -> {
@@ -484,61 +483,67 @@ fun HomeScreen(
     ) {
         Scaffold(
             topBar = {
-                if (isSearchActive) {
-                    TopAppBar(
-                        title = {
-                            OutlinedTextField(
-                                value = searchQuery,
-                                onValueChange = onSearchQueryChanged,
-                                placeholder = { Text("Search...") },
-                                singleLine = true,
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = MaterialTheme.shapes.medium
-                            )
-                        },
-                        navigationIcon = {
-                            IconButton(onClick = { scope.launch { drawerState.open() } }) {
-                                Icon(Icons.Default.Menu, contentDescription = "Menu")
-                            }
-                        },
-                        actions = {
-                            IconButton(onClick = { 
-                                isSearchActive = false 
-                                onSearchQueryChanged("")
-                            }) {
-                                Icon(Icons.Default.Close, contentDescription = "Close Search")
-                            }
-                        }
-                    )
-                } else {
-                    TopAppBar(
-                        title = { 
-                            Text(
-                                when (currentSelectedView) {
-                                    "Notes" -> "All Notes"
-                                    "Trash" -> "Trash"
-                                    else -> currentNotebookName ?: "Notes"
+                Crossfade(
+                    targetState = isSearchActive, 
+                    label = "SearchAnimation",
+                    animationSpec = tween(durationMillis = 300)
+                ) { active ->
+                    if (active) {
+                        TopAppBar(
+                            title = {
+                                OutlinedTextField(
+                                    value = searchQuery,
+                                    onValueChange = onSearchQueryChanged,
+                                    placeholder = { Text("Search...") },
+                                    singleLine = true,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = MaterialTheme.shapes.medium
+                                )
+                            },
+                            navigationIcon = {
+                                IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                                    Icon(Icons.Default.Menu, contentDescription = "Menu")
                                 }
-                            ) 
-                        },
-                        navigationIcon = {
-                            IconButton(onClick = { scope.launch { drawerState.open() } }) {
-                                Icon(Icons.Default.Menu, contentDescription = "Menu")
-                            }
-                        },
-                        actions = {
-                            if (currentSelectedView != "Trash") {
-                                IconButton(onClick = { isSearchActive = true }) {
-                                    Icon(Icons.Default.Search, contentDescription = "Search")
-                                }
-                            } else {
-                                // Trash Actions
-                                TextButton(onClick = { showEmptyTrashDialog = true }) {
-                                    Text("Clear All")
+                            },
+                            actions = {
+                                IconButton(onClick = { 
+                                    isSearchActive = false 
+                                    onSearchQueryChanged("")
+                                }) {
+                                    Icon(Icons.Default.Close, contentDescription = "Close Search")
                                 }
                             }
-                        }
-                    )
+                        )
+                    } else {
+                        TopAppBar(
+                            title = { 
+                                Text(
+                                    when (currentSelectedView) {
+                                        "Notes" -> "All Notes"
+                                        "Trash" -> "Trash"
+                                        else -> currentNotebookName ?: "Notes"
+                                    }
+                                ) 
+                            },
+                            navigationIcon = {
+                                IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                                    Icon(Icons.Default.Menu, contentDescription = "Menu")
+                                }
+                            },
+                            actions = {
+                                if (currentSelectedView != "Trash") {
+                                    IconButton(onClick = { isSearchActive = true }) {
+                                        Icon(Icons.Default.Search, contentDescription = "Search")
+                                    }
+                                } else {
+                                    // Trash Actions
+                                    TextButton(onClick = { showEmptyTrashDialog = true }) {
+                                        Text("Clear All")
+                                    }
+                                }
+                            }
+                        )
+                    }
                 }
             },
             floatingActionButton = {
@@ -723,8 +728,12 @@ fun NoteItem(
                                     }
                                 }
                             } else {
+                                // Fix for bullets being inside formatting: replacement happens before markdown parsing
+                                // Regex: Look for line start, optional whitespace, optional **, then - and space
+                                val processedLine = line.replace(Regex("^(\\s*)(\\**)-\\s"), "$1$2• ")
+                                
                                 Text(
-                                    text = parseMarkdown(line),
+                                    text = parseMarkdown(processedLine),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     maxLines = 1,

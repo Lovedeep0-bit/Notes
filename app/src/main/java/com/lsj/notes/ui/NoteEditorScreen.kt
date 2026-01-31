@@ -3,6 +3,12 @@ package com.lsj.notes.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -25,6 +31,20 @@ import androidx.compose.ui.unit.dp
 import com.lsj.notes.data.Note
 import com.lsj.notes.data.NoteType
 import com.lsj.notes.ui.theme.Black
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalTextToolbar
+import androidx.compose.ui.platform.TextToolbar
+import androidx.compose.ui.platform.TextToolbarStatus
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectTapGestures
+import android.widget.Toast
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.platform.LocalDensity
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -188,16 +208,17 @@ fun NoteEditorScreen(
         )
     }
 
-    // Markdown Parser (Basic support for **bold** and <u>underline</u>)
+    // Markdown Parser (Basic support for **bold**, <u>underline</u>, and URLs)
     fun parseMarkdown(text: String): AnnotatedString {
         return buildAnnotatedString {
-            val combinedPattern = Regex("(\\*\\*(.*?)\\*\\*)|(<u>(.*?)</u>)")
+            val combinedPattern = Regex("(\\*\\*(.*?)\\*\\*)|(<u>(.*?)</u>)|((https?://\\S+))")
             var lastIndex = 0
             combinedPattern.findAll(text).forEach { match ->
                 append(text.substring(lastIndex, match.range.first))
                 
                 val boldContent = match.groups[2]?.value
                 val underlineContent = match.groups[4]?.value
+                val urlContent = match.groups[6]?.value
                 
                 if (boldContent != null) {
                     withStyle(SpanStyle(fontWeight = FontWeight.Bold)) {
@@ -207,6 +228,12 @@ fun NoteEditorScreen(
                     withStyle(SpanStyle(textDecoration = TextDecoration.Underline)) {
                         append(parseMarkdown(underlineContent))
                     }
+                } else if (urlContent != null) {
+                    pushStringAnnotation(tag = "URL", annotation = urlContent)
+                    withStyle(SpanStyle(color = Color(0xFF64B5F6), textDecoration = TextDecoration.Underline)) {
+                        append(urlContent)
+                    }
+                    pop()
                 }
                 lastIndex = match.range.last + 1
             }
@@ -214,8 +241,134 @@ fun NoteEditorScreen(
         }
     }
 
-    Scaffold(
-        topBar = {
+    @Composable
+    fun LinkText(
+        text: AnnotatedString,
+        modifier: Modifier = Modifier,
+        style: androidx.compose.ui.text.TextStyle = MaterialTheme.typography.bodyLarge,
+        textDecoration: TextDecoration? = null
+    ) {
+        val uriHandler = LocalUriHandler.current
+        val clipboardManager = LocalClipboardManager.current
+        val context = LocalContext.current
+        var layoutResult by remember { mutableStateOf<androidx.compose.ui.text.TextLayoutResult?>(null) }
+
+        Text(
+            text = text,
+            modifier = modifier.pointerInput(Unit) {
+                detectTapGestures(
+                    onTap = { pos ->
+                        layoutResult?.let { layoutResult ->
+                            val offset = layoutResult.getOffsetForPosition(pos)
+                            text.getStringAnnotations(tag = "URL", start = offset, end = offset)
+                                .firstOrNull()?.let { annotation ->
+                                    uriHandler.openUri(annotation.item)
+                                }
+                        }
+                    },
+                    onLongPress = { pos ->
+                        layoutResult?.let { layoutResult ->
+                            val offset = layoutResult.getOffsetForPosition(pos)
+                            text.getStringAnnotations(tag = "URL", start = offset, end = offset)
+                                .firstOrNull()?.let { annotation ->
+                                    clipboardManager.setText(AnnotatedString(annotation.item))
+                                    Toast.makeText(context, "Link copied", Toast.LENGTH_SHORT).show()
+                                }
+                        }
+                    }
+                )
+            },
+            style = style,
+            textDecoration = textDecoration,
+            onTextLayout = { layoutResult = it }
+        )
+    }
+
+    @Composable
+    fun CustomTextToolbar(content: @Composable () -> Unit) {
+        var menuRect by remember { mutableStateOf<Rect?>(null) }
+        var onCopy by remember { mutableStateOf<(() -> Unit)?>(null) }
+        var onPaste by remember { mutableStateOf<(() -> Unit)?>(null) }
+        var onCut by remember { mutableStateOf<(() -> Unit)?>(null) }
+        var onSelectAll by remember { mutableStateOf<(() -> Unit)?>(null) }
+        var isShown by remember { mutableStateOf(false) }
+
+        val toolbar = remember {
+            object : TextToolbar {
+                override val status: TextToolbarStatus
+                    get() = if (isShown) TextToolbarStatus.Shown else TextToolbarStatus.Hidden
+
+                override fun showMenu(
+                    rect: Rect,
+                    onCopyRequested: (() -> Unit)?,
+                    onPasteRequested: (() -> Unit)?,
+                    onCutRequested: (() -> Unit)?,
+                    onSelectAllRequested: (() -> Unit)?
+                ) {
+                    menuRect = rect
+                    onCopy = onCopyRequested
+                    onPaste = onPasteRequested
+                    onCut = onCutRequested
+                    onSelectAll = onSelectAllRequested
+                    isShown = true
+                }
+
+                override fun hide() {
+                    isShown = false
+                }
+            }
+        }
+
+        CompositionLocalProvider(LocalTextToolbar provides toolbar) {
+            Box {
+                content()
+                if (isShown && menuRect != null) {
+                    Popup(
+                        alignment = Alignment.TopStart,
+                        offset = with(LocalDensity.current) {
+                            IntOffset(
+                                x = menuRect!!.center.x.toInt(),
+                                y = (menuRect!!.top - 50.dp.toPx()).toInt()
+                            )
+                        },
+                        onDismissRequest = { isShown = false }
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(8.dp))
+                                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(8.dp))
+                                .padding(4.dp)
+                        ) {
+                            val items = listOfNotNull(
+                                if (onCut != null) "Cut" to onCut else null,
+                                if (onCopy != null) "Copy" to onCopy else null,
+                                if (onPaste != null) "Paste" to onPaste else null,
+                                if (onSelectAll != null) "Select All" to onSelectAll else null
+                            )
+                            
+                            items.forEach { (label, action) ->
+                                Text(
+                                    text = label,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier
+                                        .clickable { 
+                                            action?.invoke() 
+                                            isShown = false 
+                                        }
+                                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    CustomTextToolbar {
+        Scaffold(
+            contentWindowInsets = WindowInsets.safeDrawing.union(WindowInsets.ime),
+            topBar = {
             TopAppBar(
                 title = {
                     // Formatting Options (Visible only in Edit Mode)
@@ -325,8 +478,8 @@ fun NoteEditorScreen(
                             val textBeforeNewline = newText.substring(0, cursorPosition - 1)
                             val lastLine = textBeforeNewline.substringAfterLast('\n', textBeforeNewline)
                             
-                            if (isBulletModeActive && lastLine.startsWith("- ")) {
-                                if (lastLine.trim() == "-") {
+                            if (isBulletModeActive && (lastLine.trimStart().startsWith("- ") || lastLine.trimStart().startsWith("• "))) {
+                                if (lastLine.trim() == "-" || lastLine.trim() == "•") {
                                     // User pressed enter on an empty bullet -> stop bullet mode and remove empty bullet
                                     val updatedText = newText.substring(0, cursorPosition - lastLine.length - 1) + newText.substring(cursorPosition)
                                     content = newValue.copy(
@@ -369,7 +522,7 @@ fun NoteEditorScreen(
                                 val textBeforeCursor = newText.substring(0, cursorPosition)
                                 val currentLine = textBeforeCursor.substringAfterLast('\n', textBeforeCursor)
                                 
-                                if (isBulletModeActive && !currentLine.startsWith("-") && !newText.contains("- ")) {
+                                if (isBulletModeActive && !currentLine.trimStart().startsWith("-") && !newText.contains("- ")) {
                                     isBulletModeActive = false
                                 }
                                 if (isChecklistModeActive && !currentLine.startsWith("[") && !newText.contains("[ ] ")) {
@@ -392,11 +545,12 @@ fun NoteEditorScreen(
                     )
                 )
             } else {
-                // Preview mode
+                // Preview mode, hiding the toolbar handled by CustomTextToolbar
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(16.dp)
+                        .verticalScroll(rememberScrollState()) // Enable scrolling for long notes
                 ) {
                     if (title.isNotBlank()) {
                         Text(
@@ -424,7 +578,7 @@ fun NoteEditorScreen(
                                         },
                                         modifier = Modifier.size(32.dp)
                                     )
-                                    Text(
+                                    LinkText(
                                         text = parseMarkdown(line.substring(4)),
                                         style = MaterialTheme.typography.bodyLarge,
                                         textDecoration = if (isChecked) TextDecoration.LineThrough else null
@@ -432,8 +586,13 @@ fun NoteEditorScreen(
                                 }
                             }
                         } else {
-                            Text(
-                                text = parseMarkdown(line),
+                            // Fix for bullets being inside formatting: replacement happens before markdown parsing
+                            // We replace "- " at start (or indented) with bullet, even if wrapped in **.
+                            // Regex: Look for line start, optional whitespace, optional **, then - and space
+                            val processedLine = line.replace(Regex("^(\\s*)(\\**)-\\s"), "$1$2• ")
+                            
+                            LinkText(
+                                text = parseMarkdown(processedLine),
                                 style = MaterialTheme.typography.bodyLarge
                             )
                         }
@@ -441,5 +600,6 @@ fun NoteEditorScreen(
                 }
             }
         }
+    }
     }
 }
