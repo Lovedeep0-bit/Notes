@@ -9,10 +9,10 @@ package com.lsj.notes.config
  */
 object SupabaseConfig {
     // Replace with your Supabase project URL
-    const val SUPABASE_URL = "https://your-project.supabase.co"
+    const val SUPABASE_URL = "https://adbtooemgvqyprbnpvyn.supabase.co"
     
     // Replace with your Supabase anon key
-    const val SUPABASE_ANON_KEY = "your-anon-key"
+    const val SUPABASE_ANON_KEY = "sb_publishable_EecaNX3F6OAIPQOKzrHJXg_MVhbLQIU"
     
     // Table names
     const val NOTES_TABLE = "notes"
