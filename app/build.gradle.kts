@@ -59,6 +59,27 @@ dependencies {
     implementation(libs.androidx.material.icons.extended)
     implementation(libs.androidx.biometric)
     implementation(libs.androidx.fragment.ktx)
+    
+    // Supabase Dependencies
+    implementation("io.github.supabase:gotrue-kt:2.2.0")
+    implementation("io.github.supabase:postgrest-kt:2.2.0")
+    implementation("io.github.supabase:realtime-kt:2.2.0")
+    implementation("io.github.supabase:storage-kt:2.2.0")
+    implementation("io.github.supabase:supabase-kt:2.2.0")
+    
+    // HTTP Client
+    implementation("io.ktor:ktor-client-android:2.3.6")
+    implementation("io.ktor:ktor-client-serialization:2.3.6")
+    
+    // Serialization
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.0")
+    
+    // Coroutines
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.1")
+    
+    // WorkManager for background sync
+    implementation("androidx.work:work-runtime-ktx:2.8.1")
+    
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
