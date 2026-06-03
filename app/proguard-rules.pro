@@ -19,3 +19,6 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+
+# Suppress optional SLF4J binder lookup warnings in release shrinking.
+-dontwarn org.slf4j.impl.**
