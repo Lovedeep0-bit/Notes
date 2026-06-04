@@ -19,7 +19,3 @@ A sleek, secure, and minimal note-taking app built with modern Android standards
 - **Local Database**: [Room](https://developer.android.com/training/data-storage/room)
 - **Authentication**: [AndroidX Biometric](https://developer.android.com/training/sign-in/biometric-auth)
 - **Navigation**: Compose Navigation
-
-## Credits 🤝
-
-Developed by [Lovedeep0-bit](https://github.com/Lovedeep0-bit/Notes)
