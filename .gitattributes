@@ -1,0 +1,4 @@
+# Tell GitHub Linguist to ignore generated/wrapper files for language stats
+gradlew linguist-detectable=false
+gradlew.bat linguist-detectable=false
+*.bat linguist-detectable=false
