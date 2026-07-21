@@ -29,11 +29,6 @@ kotlin {
             implementation(libs.androidx.biometric)
             implementation(libs.androidx.fragment.ktx)
             implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
-
-            // Ktor engine for Supabase
-            implementation(libs.ktor.client.okhttp)
-            // SLF4J binding required for minified release builds (R8).
-            implementation(libs.slf4j.nop)
         }
         
         commonMain.dependencies {
@@ -50,11 +45,6 @@ kotlin {
             implementation(libs.multiplatform.settings)
             implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
 
-            // Supabase (Auth + PostgREST)
-            implementation(platform("io.github.jan-tennert.supabase:bom:${libs.versions.supabase.get()}"))
-            implementation(libs.supabase.kt)
-            implementation(libs.supabase.gotrue)
-            implementation(libs.supabase.postgrest)
             implementation(libs.kotlinx.serialization.json)
             
             // Room
@@ -65,9 +55,6 @@ kotlin {
         desktopMain.dependencies {
             implementation(compose.desktop.currentOs)
             implementation("org.jetbrains.kotlinx:kotlinx-coroutines-swing:1.9.0")
-
-            // Ktor engine for Supabase
-            implementation(libs.ktor.client.java)
         }
     }
 }
@@ -99,7 +86,7 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
-        isCoreLibraryDesugaringEnabled = true
+
     }
 }
 
@@ -137,16 +124,12 @@ dependencies {
     add("kspAndroid", libs.androidx.room.compiler)
     add("kspDesktop", libs.androidx.room.compiler)
 
-    coreLibraryDesugaring(libs.android.desugar.jdk.libs)
-
     // Provide versions for androidx.compose.* artifacts declared without versions in libs.versions.toml
     add("implementation", platform(libs.androidx.compose.bom))
     add("androidTestImplementation", platform(libs.androidx.compose.bom))
     add("debugImplementation", platform(libs.androidx.compose.bom))
 
-    // Provide versions for Supabase modules
-    add("implementation", platform(libs.supabase.bom))
-    
+
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
     
